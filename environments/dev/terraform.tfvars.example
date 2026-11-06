@@ -1,0 +1,19 @@
+aws_region     = "us-east-1"
+project_name   = "kavi-devops"
+environment    = "dev"
+aws_account_id = "250326384271"
+
+# VPC Config
+vpc_cidr             = "10.10.0.0/16"
+public_subnet_cidrs  = ["10.10.1.0/24", "10.10.2.0/24"]
+private_subnet_cidrs = ["10.10.11.0/24", "10.10.12.0/24"]
+
+# EC2 & App Config
+instance_type  = "t3.micro"
+enable_bastion = false
+image_tag      = "latest"
+
+# Database Config (Disabled by default in dev to conserve free tier hours)
+enable_rds        = false
+db_instance_class = "db.t3.micro"
+allocated_storage = 20

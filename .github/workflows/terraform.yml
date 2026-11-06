@@ -1,0 +1,94 @@
+name: "Terraform Deploy"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "environments/**"
+      - "modules/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "environments/**"
+      - "modules/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment to run Terraform against"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+        default: dev
+      action:
+        description: "Terraform action to execute"
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+        default: plan
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: "Terraform (${{ github.event.inputs.environment || 'dev' }})"
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: "us-east-1"
+      TARGET_ENV: "${{ github.event.inputs.environment || 'dev' }}"
+      ACTION: "${{ github.event.inputs.action || (github.event_name == 'push' && 'apply' || 'plan') }}"
+      TF_IN_AUTOMATION: "true"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+
+      - name: Check Formatting
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        working-directory: environments/${{ env.TARGET_ENV }}
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: environments/${{ env.TARGET_ENV }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: environments/${{ env.TARGET_ENV }}
+        run: |
+          if [ "${{ env.ACTION }}" = "destroy" ]; then
+            terraform plan -destroy -out=tfplan
+          else
+            terraform plan -out=tfplan
+          fi
+
+      - name: Terraform Apply / Destroy
+        if: github.ref == 'refs/heads/main' && (env.ACTION == 'apply' || env.ACTION == 'destroy')
+        working-directory: environments/${{ env.TARGET_ENV }}
+        run: terraform apply -auto-approve -input=false tfplan
