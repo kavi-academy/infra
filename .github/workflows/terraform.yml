@@ -1,4 +1,4 @@
-name: "Terraform Deploy"
+name: "Terraform Production Pipeline"
 
 on:
   push:
@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Target environment to run Terraform against"
+        description: "Target environment"
         required: true
         type: choice
         options:
@@ -27,7 +27,7 @@ on:
           - prod
         default: dev
       action:
-        description: "Terraform action to execute"
+        description: "Action to execute"
         required: true
         type: choice
         options:
@@ -36,20 +36,116 @@ on:
           - destroy
         default: plan
 
+# 1. Concurrency control: Never cancel an in-flight apply!
+concurrency:
+  group: terraform-${{ github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
-  id-token: write
-  pull-requests: write
+  id-token: write         # Required for AWS OIDC authentication
+  pull-requests: write    # Required to post plan comment on PRs
 
 jobs:
-  terraform:
-    name: "Terraform (${{ github.event.inputs.environment || 'dev' }})"
+  # ─────────────────────────────────────────────
+  # STAGE 1: VALIDATION & SECURITY SCANNING
+  # ─────────────────────────────────────────────
+  validate:
+    name: "Validate & Format"
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+
+      - name: Check Code Formatting
+        run: terraform fmt -check -recursive
+
+  # ─────────────────────────────────────────────
+  # STAGE 2: TERRAFORM PLAN (All PRs and Manual)
+  # ─────────────────────────────────────────────
+  plan:
+    name: "Plan (${{ github.event.inputs.environment || 'dev' }})"
+    needs: validate
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: "us-east-1"
+      TARGET_ENV: "${{ github.event.inputs.environment || 'dev' }}"
+      TF_IN_AUTOMATION: "true"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Best practice: Keyless OIDC with fallback to secrets
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # Preferred (OIDC)
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} # Fallback
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+
+      - name: Terraform Init
+        working-directory: environments/${{ env.TARGET_ENV }}
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: environments/${{ env.TARGET_ENV }}
+        run: |
+          terraform plan -no-color -out=tfplan > plan_output.txt
+          cat plan_output.txt
+
+      # Post Plan output as a comment on Pull Requests
+      - name: Post Plan to GitHub PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('environments/${{ env.TARGET_ENV }}/plan_output.txt', 'utf8');
+            const output = `### 🚀 Terraform Plan (${{ env.TARGET_ENV }})
+            #### Results: \`SUCCESS\`
+            <details><summary>Show Plan Output</summary>
+
+            \`\`\`terraform\n
+            ${plan.length > 60000 ? plan.substring(0, 60000) + '... (truncated)' : plan}
+            \`\`\`
+
+            </details>
+            *Pushed by: @${{ github.actor }}*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  # ─────────────────────────────────────────────
+  # STAGE 3: TERRAFORM APPLY (Only on Merge to main)
+  # ─────────────────────────────────────────────
+  apply:
+    name: "Apply (${{ github.event.inputs.environment || 'dev' }})"
+    needs: plan
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event.inputs.action == 'apply')
+    runs-on: ubuntu-latest
+    environment: "${{ github.event.inputs.environment || 'dev' }}" # Enforces GitHub Approval Rules
 
     env:
       AWS_REGION: "us-east-1"
       TARGET_ENV: "${{ github.event.inputs.environment || 'dev' }}"
-      ACTION: "${{ github.event.inputs.action || (github.event_name == 'push' && 'apply' || 'plan') }}"
       TF_IN_AUTOMATION: "true"
 
     steps:
@@ -59,6 +155,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -68,27 +165,10 @@ jobs:
         with:
           terraform_version: "1.9.5"
 
-      - name: Check Formatting
-        run: terraform fmt -check -recursive
-
       - name: Terraform Init
         working-directory: environments/${{ env.TARGET_ENV }}
         run: terraform init
 
-      - name: Terraform Validate
+      - name: Terraform Apply
         working-directory: environments/${{ env.TARGET_ENV }}
-        run: terraform validate
-
-      - name: Terraform Plan
-        working-directory: environments/${{ env.TARGET_ENV }}
-        run: |
-          if [ "${{ env.ACTION }}" = "destroy" ]; then
-            terraform plan -destroy -out=tfplan
-          else
-            terraform plan -out=tfplan
-          fi
-
-      - name: Terraform Apply / Destroy
-        if: github.ref == 'refs/heads/main' && (env.ACTION == 'apply' || env.ACTION == 'destroy')
-        working-directory: environments/${{ env.TARGET_ENV }}
-        run: terraform apply -auto-approve -input=false tfplan
+        run: terraform apply -auto-approve -input=false
