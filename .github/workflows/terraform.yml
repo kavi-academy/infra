@@ -60,7 +60,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.9.5"
+          terraform_version: "1.10.5"
 
       - name: Check Code Formatting
         run: terraform fmt -check -recursive
@@ -81,11 +81,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Debug OIDC Claims
-        run: |
-          JWT=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
-          echo "=== Decoded GitHub OIDC Claims ==="
-          echo "$JWT" | jq -R 'split(".") | .[1] | @base64d | fromjson | {iss, aud, sub, repository, repository_owner, ref, job_workflow_ref}'
 
       # Best practice: Keyless OIDC with fallback to secrets
       - name: Configure AWS Credentials
@@ -98,7 +93,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.9.5"
+          terraform_version: "1.10.5"
 
       - name: Terraform Init
         working-directory: environments/${{ env.TARGET_ENV }}
@@ -167,7 +162,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.9.5"
+          terraform_version: "1.10.5"
 
       - name: Terraform Init
         working-directory: environments/${{ env.TARGET_ENV }}
