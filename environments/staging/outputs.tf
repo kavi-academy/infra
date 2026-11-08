@@ -13,14 +13,19 @@ output "private_subnet_ids" {
   value       = module.vpc.private_subnet_ids
 }
 
-output "app_server_public_ip" {
-  description = "Public IP of the application server"
-  value       = module.ec2.app_instance_public_ip
+output "alb_dns_name" {
+  description = "Public URL of Application Load Balancer (access your application here)"
+  value       = "http://${module.ec2.alb_dns_name}"
 }
 
-output "app_server_private_ip" {
-  description = "Private IP of the application server"
-  value       = module.ec2.app_instance_private_ip
+output "ecr_repository_url" {
+  description = "ECR Repository URL for pushing Docker images"
+  value       = module.ecr.repository_url
+}
+
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = module.ec2.asg_name
 }
 
 output "bastion_public_ip" {

@@ -34,10 +34,10 @@ resource "aws_sns_topic" "alerts" {
 }
 
 # ─────────────────────────────────────────────
-# High CPU Alarm (>80%)
+# High CPU Alarm (>80%) on Auto Scaling Group
 # ─────────────────────────────────────────────
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
-  alarm_name          = "${local.name_prefix}-ec2-high-cpu"
+  alarm_name          = "${local.name_prefix}-asg-high-cpu"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
   metric_name         = "CPUUtilization"
@@ -45,14 +45,14 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   period              = 120
   statistic           = "Average"
   threshold           = 80
-  alarm_description   = "Triggered when EC2 CPU exceeds 80% for 4 minutes"
+  alarm_description   = "Triggered when Auto Scaling Group average CPU exceeds 80% for 4 minutes"
   alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
-    InstanceId = var.app_instance_id
+    AutoScalingGroupName = var.asg_name
   }
 
   tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-high-cpu-alarm"
+    Name = "${local.name_prefix}-asg-high-cpu"
   })
 }

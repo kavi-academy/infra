@@ -9,9 +9,10 @@ variable "environment" {
   type        = string
 }
 
-variable "app_instance_id" {
-  description = "EC2 instance ID to monitor with CPU alarm"
+variable "asg_name" {
+  description = "Name of the Auto Scaling Group to monitor"
   type        = string
+  default     = ""
 }
 
 variable "retention_in_days" {

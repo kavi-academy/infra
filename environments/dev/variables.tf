@@ -52,6 +52,30 @@ variable "instance_type" {
   default     = "t3.micro"
 }
 
+variable "asg_desired_capacity" {
+  description = "Number of EC2 instances running in Auto Scaling Group"
+  type        = number
+  default     = 2
+}
+
+variable "asg_min_size" {
+  description = "Minimum number of instances in ASG"
+  type        = number
+  default     = 2
+}
+
+variable "asg_max_size" {
+  description = "Maximum number of instances in ASG"
+  type        = number
+  default     = 4
+}
+
+variable "ecr_repo_name" {
+  description = "ECR Repository name for Docker images"
+  type        = string
+  default     = "expenses-manager"
+}
+
 variable "enable_bastion" {
   description = "Enable Bastion host in public subnet"
   type        = bool

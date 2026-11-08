@@ -1,16 +1,26 @@
-output "app_instance_id" {
-  description = "ID of the Application EC2 instance"
-  value       = aws_instance.app.id
+output "alb_dns_name" {
+  description = "Public DNS name of the Application Load Balancer"
+  value       = aws_lb.app.dns_name
 }
 
-output "app_instance_public_ip" {
-  description = "Public IP of the Application EC2 instance"
-  value       = aws_instance.app.public_ip
+output "alb_arn" {
+  description = "ARN of the Application Load Balancer"
+  value       = aws_lb.app.arn
 }
 
-output "app_instance_private_ip" {
-  description = "Private IP of the Application EC2 instance"
-  value       = aws_instance.app.private_ip
+output "target_group_arn" {
+  description = "ARN of the ALB Target Group"
+  value       = aws_lb_target_group.app.arn
+}
+
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.app.name
+}
+
+output "asg_arn" {
+  description = "ARN of the Auto Scaling Group"
+  value       = aws_autoscaling_group.app.arn
 }
 
 output "bastion_instance_public_ip" {

@@ -2,6 +2,16 @@
 # Dev Environment Infrastructure Root
 # ─────────────────────────────────────────────
 
+module "ecr" {
+  source = "../../modules/ecr"
+
+  repository_name = var.ecr_repo_name
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -27,13 +37,20 @@ module "ec2" {
 
   project_name              = var.project_name
   environment               = var.environment
+  vpc_id                    = module.vpc.vpc_id
   instance_type             = var.instance_type
-  app_subnet_id             = module.vpc.public_subnet_ids[0]
-  public_subnet_id          = module.vpc.public_subnet_ids[1]
+  app_subnet_ids            = module.vpc.public_subnet_ids
+  public_subnet_ids         = module.vpc.public_subnet_ids
   app_security_group_id     = module.security_group.app_security_group_id
+  alb_security_group_id     = module.security_group.alb_security_group_id
   bastion_security_group_id = module.security_group.bastion_security_group_id
   key_name                  = var.key_name
   enable_bastion            = var.enable_bastion
+  asg_desired_capacity      = var.asg_desired_capacity
+  asg_min_size              = var.asg_min_size
+  asg_max_size              = var.asg_max_size
+  ecr_repository_url        = module.ecr.repository_url
+  aws_region                = var.aws_region
   image_tag                 = var.image_tag
 }
 
@@ -61,7 +78,7 @@ module "rds" {
 module "cloudwatch" {
   source = "../../modules/cloudwatch"
 
-  project_name    = var.project_name
-  environment     = var.environment
-  app_instance_id = module.ec2.app_instance_id
+  project_name = var.project_name
+  environment  = var.environment
+  asg_name     = module.ec2.asg_name
 }
